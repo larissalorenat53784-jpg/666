@@ -1,3 +1,4 @@
+# proxy.py
 import socket
 import threading
 import select
@@ -24,20 +25,16 @@ def handle_client(client_sock, client_addr):
             request_data += chunk
             if len(request_data) > 8192:
                 break
-
         if not request_data:
             client_sock.close()
             return
-
         lines = request_data.split(b"\r\n")
         first_line = lines[0].decode('utf-8', errors='ignore')
         parts = first_line.split(" ")
         if len(parts) < 2:
             client_sock.close()
             return
-
         method, url = parts[0], parts[1]
-
         # 检查 Proxy-Authorization 认证
         authed = False
         expected_auth = base64.b64encode(f"{AUTH_USER}:{AUTH_PASS}".encode()).decode()
@@ -47,7 +44,6 @@ def handle_client(client_sock, client_addr):
                 if token == expected_auth:
                     authed = True
                     break
-
         if not authed:
             # 认证失败，返回 407 要求输入账号密码
             challenge = (
@@ -58,7 +54,6 @@ def handle_client(client_sock, client_addr):
             client_sock.sendall(challenge.encode())
             client_sock.close()
             return
-
         # 解析目标地址
         if method == "CONNECT":
             # HTTPS / 隧道代理
@@ -69,7 +64,6 @@ def handle_client(client_sock, client_addr):
             else:
                 target_host = host_port
                 target_port = 443
-
             # 回复客户端 CONNECT 建立成功
             client_sock.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
         else:
@@ -87,15 +81,12 @@ def handle_client(client_sock, client_addr):
             else:
                 target_host = host_port
                 target_port = 80
-
             # 把剩余的请求体转发给目标
             # 简化处理：对于普通 HTTP，把首行 URL 里的协议域名去掉
             # 实际生产中可以更完整，这里重点保证主干通畅
-
         print(f"[->] 正在转发到目标: {target_host}:{target_port}")
         remote_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         remote_sock.connect((target_host, target_port))
-
         # 如果是普通 HTTP 且带了剩余数据，可以转发，如果是 CONNECT 则直接开始双向流转发
         if method != "CONNECT":
             # 重新构造请求发给远端
@@ -103,7 +94,6 @@ def handle_client(client_sock, client_addr):
             # 过滤掉 Proxy 相关的头
             forward_data = new_first_line.encode() + b"\r\n".join([l for l in lines[1:] if not l.lower().startswith(b"proxy-")])
             remote_sock.sendall(forward_data)
-
         # 双向流量转发
         sockets = [client_sock, remote_sock]
         while True:
@@ -120,7 +110,6 @@ def handle_client(client_sock, client_addr):
                 if not data:
                     break
                 client_sock.sendall(data)
-
     except Exception as e:
         print(f"[!] 异常: {e}")
     finally:
